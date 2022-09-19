@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_carousel_slider/carousel_slider.dart';
 import 'package:flutter_carousel_slider/carousel_slider_transforms.dart';
+import 'package:get/get.dart';
+import 'package:instalavista/controller.dart';
 import 'package:instalavista/models/Story.dart';
 import 'package:instalavista/models/story_group.dart';
 import 'package:instalavista/models/user.dart';
-import 'package:instalavista/progress_bloc.dart';
 import 'package:video_player/video_player.dart';
 
 void main() {
@@ -79,7 +80,7 @@ class _StoryScreenState extends State<StoryScreen>
   );
   late VideoPlayerController _videoController;
 
-  final ProgressBloc progressBloc = ProgressBloc();
+  final Controller _controller = Get.put(Controller());
 
   int _currentStoryGroupIndex = 0;
   int _currentStoryIndex = 0;
@@ -142,8 +143,7 @@ class _StoryScreenState extends State<StoryScreen>
               _currentStoryIndex < currentStoryGroup().stories.length - 1)) {
         nextStory();
       }
-      progressBloc.progressSink.add(_animationController.value);
-      //_controller.setProgress(_animationController.value);
+      _controller.setProgress(_animationController.value);
     });
   }
 
@@ -156,7 +156,7 @@ class _StoryScreenState extends State<StoryScreen>
 
   void nextStory() {
     _animationController.stop();
-    if (currentStory().mediaType == MediaType.video) _videoController.dispose();
+    if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
     if (_currentStoryIndex < currentStoryGroup().stories.length - 1) {
       _animationController.value = 0;
       _currentStoryIndex = _currentStoryIndex + 1;
@@ -181,9 +181,8 @@ class _StoryScreenState extends State<StoryScreen>
 
   void previousStory() {
     _animationController.stop();
-    if (currentStory().mediaType == MediaType.video) _videoController.dispose();
-    if (currentStory().mediaType == MediaType.video &&
-        _videoController.value.isPlaying) _videoController.dispose();
+    if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
+    if (currentStory().mediaType == MediaType.video && _videoController.value.isPlaying) _videoController.dispose();
 
     if (_currentStoryIndex > 0) {
       _animationController.value = 0;
@@ -218,137 +217,129 @@ class _StoryScreenState extends State<StoryScreen>
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        body: StreamBuilder<double>(
-          stream: progressBloc.progressStream,
-          builder: (context, snapshot) {
-            return CarouselSlider(
-              controller: _sliderController,
-              slideTransform: CubeTransform(),
-              onSlideChanged: (int) {
-                if (currentStory().mediaType == MediaType.video)
-                  _videoController.dispose();
-                _currentStoryGroupIndex = int;
-                _currentStoryIndex =
-                    storyGroups[_currentStoryGroupIndex].lastSeenStory;
-                _animationController.value = 0;
+        body: CarouselSlider(
+          controller: _sliderController,
+          slideTransform: CubeTransform(),
+          onSlideChanged: (int) {
+            if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
+            _currentStoryGroupIndex = int;
+            _currentStoryIndex = storyGroups[_currentStoryGroupIndex].lastSeenStory;
+            _animationController.value = 0;
 
-                print(_currentStoryGroupIndex.toString() +
-                    " " +
-                    _currentStoryIndex.toString());
+            print(_currentStoryGroupIndex.toString()+ " " +_currentStoryIndex.toString());
 
-                // set video
-                if (currentStory().mediaType == MediaType.video) {
-                  _videoController =
-                      VideoPlayerController.network(currentStory().mediaUrl);
-                  _videoController.initialize().then((_) {
-                    _videoController.play();
-                    _animationController.forward();
-                  });
-                }
-              },
-              children: [
-                buildStoryGroup(context),
-                buildStoryGroup(context),
-              ],
-            );
+            // set video
+            if (currentStory().mediaType == MediaType.video) {
+              _videoController = VideoPlayerController.network(currentStory().mediaUrl);
+              _videoController.initialize().then((_) {
+                _videoController.play();
+                _animationController.forward();
+              });
+            }
           },
+          children: [
+            buildStoryGroup(context),
+            buildStoryGroup(context),
+          ],
         ),
       ),
     );
   }
 
-  Stack buildStoryGroup(BuildContext context) {
-    return Stack(
-      children: [
-        GestureDetector(
-          onTapDown: (details) {
-            final tapPosition = details.globalPosition;
-            final x = tapPosition.dx;
-            if (x < MediaQuery.of(context).size.width / 3) {
-              previousStory();
-            } else if (x > MediaQuery.of(context).size.width * 2 / 3) {
-              nextStory();
-            } else {
-              _animationController.stop();
-              _videoController.pause();
-            }
-          },
-          onTapUp: (details) {
-            _animationController.forward();
-            _videoController.play();
-          },
-          child: Container(
-            color: Colors.black,
-            child: currentStory().mediaType == MediaType.image
-                ? Image.network(
-                    currentStory().mediaUrl,
-                    fit: BoxFit.cover,
-                    height: double.infinity,
-                    width: double.infinity,
-                    alignment: Alignment.center,
-                    loadingBuilder: (BuildContext context, Widget child,
-                        ImageChunkEvent? loadingProgress) {
-                      if (loadingProgress == null) {
-                        _animationController.forward();
-                        return child;
-                      }
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                  )
-                : Center(
-                    child: _videoController.value.isInitialized
-                        ? AspectRatio(
-                            aspectRatio: _videoController.value.aspectRatio,
-                            child: VideoPlayer(_videoController),
-                          )
-                        : Container(),
-                  ),
-          ),
-        ),
-        Positioned(
-          left: 20,
-          top: 20,
-          child: CircleAvatar(
-            //radius: 30.0,
-            child: Image.network(
-              storyGroups[_currentStoryGroupIndex].user.profileImage,
-              width: 30,
-              height: 40,
+  Obx buildStoryGroup(BuildContext context) {
+    return Obx(()=>
+      Stack(
+        children: [
+          GestureDetector(
+            onTapDown: (details) {
+              final tapPosition = details.globalPosition;
+              final x = tapPosition.dx;
+              if (x < MediaQuery.of(context).size.width / 3) {
+                previousStory();
+              } else if (x > MediaQuery.of(context).size.width * 2 / 3) {
+                nextStory();
+              } else {
+                _animationController.stop();
+                _videoController.pause();
+              }
+            },
+            onTapUp: (details) {
+              _animationController.forward();
+              _videoController.play();
+            },
+            child: Container(
+              color: Colors.black,
+              child: currentStory().mediaType == MediaType.image
+                  ? Image.network(
+                      currentStory().mediaUrl,
+                      fit: BoxFit.cover,
+                      height: double.infinity,
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      loadingBuilder: (BuildContext context, Widget child,
+                          ImageChunkEvent? loadingProgress) {
+                        if (loadingProgress == null) {
+                          _animationController.forward();
+                          return child;
+                        }
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
+                    )
+                  : Center(
+                      child: _videoController.value.isInitialized
+                          ? AspectRatio(
+                              aspectRatio: _videoController.value.aspectRatio,
+                              child: VideoPlayer(_videoController),
+                            )
+                          : Container(),
+                    ),
             ),
           ),
-        ),
-        Align(
-          alignment: AlignmentDirectional.topCenter,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(
-                storyGroups[_currentStoryGroupIndex].stories.length, (index) {
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: LinearProgressIndicator(
-                    value: _currentStoryIndex == index
-                        ? _animationController.value
-                        : _currentStoryIndex > index
-                            ? currentStory().duration.inSeconds.toDouble()
-                            : 0,
-                    semanticsLabel: 'Linear progress indicator',
-                    color: Colors.blue,
-                    backgroundColor: Colors.grey,
-                  ),
-                ),
-              );
-            }),
+          Positioned(
+            left: 20,
+            top: 20,
+            child: CircleAvatar(
+              //radius: 30.0,
+              child: Image.network(
+                storyGroups[_currentStoryGroupIndex].user.profileImage,
+                width: 30,
+                height: 40,
+              ),
+            ),
           ),
-        ),
-      ],
+          Align(
+            alignment: AlignmentDirectional.topCenter,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(storyGroups[_currentStoryGroupIndex].stories.length,
+                  (index) {
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: LinearProgressIndicator(
+                      value: _currentStoryIndex == index
+                          ? _controller.progress.value
+                          : _currentStoryIndex > index
+                              ? currentStory().duration.inSeconds.toDouble()
+                              : 0,
+                      semanticsLabel: 'Linear progress indicator',
+                      color: Colors.blue,
+                      backgroundColor: Colors.grey,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
