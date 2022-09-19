@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_carousel_slider/carousel_slider.dart';
 import 'package:flutter_carousel_slider/carousel_slider_transforms.dart';
 import 'package:get/get.dart';
+import 'package:instalavista/controller.dart';
 import 'package:instalavista/models/Story.dart';
 import 'package:instalavista/models/story_group.dart';
 import 'package:instalavista/models/user.dart';
@@ -48,35 +49,13 @@ class _MainScreenState extends State<MainScreen> {
       appBar: AppBar(
         title: Text("Instalavista"),
       ),
-      body: Column(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              itemCount: 6,
-              scrollDirection: Axis.horizontal,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, StoryScreen.routeName);
-                    },
-                    child: Container(
-                      height: 100,
-                      width: 100,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          )
-        ],
+      body: Center(
+        child: ElevatedButton(
+          child: Text("Go To Stories"),
+          onPressed: () {
+            Navigator.pushNamed(context, StoryScreen.routeName);
+          },
+        ),
       ),
     );
   }
@@ -93,20 +72,21 @@ class StoryScreen extends StatefulWidget {
 
 class _StoryScreenState extends State<StoryScreen>
     with TickerProviderStateMixin {
-  late final CarouselSliderController _sliderController = CarouselSliderController();
-  late AnimationController animationController = AnimationController(
+  late final CarouselSliderController _sliderController =
+      CarouselSliderController();
+  late AnimationController _animationController = AnimationController(
     vsync: this,
     duration: currentStory().duration,
   );
-  late VideoPlayerController videoController;
+  late VideoPlayerController _videoController;
 
-  int currentSGroup = 0;
-  int cStory = 0;
-  var progress = 0.0.obs;
+  final Controller _controller = Get.put(Controller());
+
+  int _currentStoryGroupIndex = 0;
+  int _currentStoryIndex = 0;
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     setStart();
   }
@@ -146,96 +126,91 @@ class _StoryScreenState extends State<StoryScreen>
             Duration(seconds: 5)),
       ],
     )
-  ].obs;
+  ];
 
   void setStart() {
     // set if Video
     if (currentStory().mediaType == MediaType.video) {
-      videoController = VideoPlayerController.network(currentStory().mediaUrl);
-      videoController.initialize().then((_) {
-        videoController.play();
-        animationController.forward();
+      _videoController = VideoPlayerController.network(currentStory().mediaUrl);
+      _videoController.initialize().then((_) {
+        _videoController.play();
+        _animationController.forward();
       });
     }
-    animationController.addListener(() {
-      if (animationController.value == 1.0 &&
-          (currentSGroup < storyGroups.length - 1 ||
-              cStory < currentStoryGroup().stories.length - 1)) {
+    _animationController.addListener(() {
+      if (_animationController.value == 1.0 &&
+          (_currentStoryGroupIndex < storyGroups.length - 1 ||
+              _currentStoryIndex < currentStoryGroup().stories.length - 1)) {
         nextStory();
       }
-
-      progress.value = animationController.value;
-      setState(() {});
+      _controller.setProgress(_animationController.value);
     });
   }
 
   @override
   void dispose() {
-    // TODO: implement dispose
     super.dispose();
-    animationController.dispose();
-    videoController.dispose();
+    _animationController.dispose();
+    _videoController.dispose();
   }
 
   void nextStory() {
-    animationController.stop();
-    if (currentStory().mediaType == MediaType.video) videoController.pause();
-    if (cStory < currentStoryGroup().stories.length - 1) {
-      animationController.value = 0;
-      cStory = cStory + 1;
-      currentStoryGroup().lastSeenStory = cStory;
-      animationController.duration = currentStory().duration;
+    _animationController.stop();
+    if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
+    if (_currentStoryIndex < currentStoryGroup().stories.length - 1) {
+      _animationController.value = 0;
+      _currentStoryIndex = _currentStoryIndex + 1;
+      currentStoryGroup().lastSeenStory = _currentStoryIndex;
+      _animationController.duration = currentStory().duration;
     } else {
-      if (currentSGroup < storyGroups.length - 1) {
+      if (_currentStoryGroupIndex < storyGroups.length - 1) {
         _sliderController.nextPage(Duration(milliseconds: 300));
       }
     }
 
     // set Video
     if (currentStory().mediaType == MediaType.video) {
-      videoController = VideoPlayerController.network(currentStory().mediaUrl);
-      videoController.initialize().then((_) {
-        videoController.play();
-        print("Playing Video N");
-        animationController.forward();
+      _videoController = VideoPlayerController.network(currentStory().mediaUrl);
+      _videoController.initialize().then((_) {
+        _videoController.play();
+        _animationController.forward();
       });
     }
     print(currentStory().mediaUrl);
   }
 
   void previousStory() {
-    animationController.stop();
-    if (currentStory().mediaType == MediaType.video)
-      videoController.pause(); // stop last video
-    if (cStory > 0) {
-      animationController.value = 0;
-      cStory = cStory - 1;
-      currentStoryGroup().lastSeenStory = cStory;
-      animationController.duration = currentStory().duration;
+    _animationController.stop();
+    if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
+    if (currentStory().mediaType == MediaType.video && _videoController.value.isPlaying) _videoController.dispose();
+
+    if (_currentStoryIndex > 0) {
+      _animationController.value = 0;
+      _currentStoryIndex = _currentStoryIndex - 1;
+      currentStoryGroup().lastSeenStory = _currentStoryIndex;
+      _animationController.duration = currentStory().duration;
     } else {
-      if (currentSGroup > 0) {
+      if (_currentStoryGroupIndex > 0) {
         _sliderController.previousPage(Duration(milliseconds: 300));
       }
     }
 
     // set video
     if (currentStory().mediaType == MediaType.video) {
-      videoController = VideoPlayerController.network(currentStory().mediaUrl);
-      videoController.initialize().then((_) {
-        videoController.play();
-        animationController.forward();
-        print("Playing Video P");
+      _videoController = VideoPlayerController.network(currentStory().mediaUrl);
+      _videoController.initialize().then((_) {
+        _videoController.play();
+        _animationController.forward();
       });
     }
-    print(currentStory().mediaUrl);
   }
 
   Story currentStory() {
-    return storyGroups[currentSGroup].stories[cStory];
+    return storyGroups[_currentStoryGroupIndex].stories[_currentStoryIndex];
   }
 
   StoryGroup currentStoryGroup() {
-    return storyGroups[currentSGroup];
+    return storyGroups[_currentStoryGroupIndex];
   }
 
   @override
@@ -246,9 +221,21 @@ class _StoryScreenState extends State<StoryScreen>
           controller: _sliderController,
           slideTransform: CubeTransform(),
           onSlideChanged: (int) {
-            currentSGroup = int;
-            cStory = storyGroups[currentSGroup].lastSeenStory;
-            animationController.value = 0;
+            if (currentStory().mediaType == MediaType.video ) _videoController.dispose();
+            _currentStoryGroupIndex = int;
+            _currentStoryIndex = storyGroups[_currentStoryGroupIndex].lastSeenStory;
+            _animationController.value = 0;
+
+            print(_currentStoryGroupIndex.toString()+ " " +_currentStoryIndex.toString());
+
+            // set video
+            if (currentStory().mediaType == MediaType.video) {
+              _videoController = VideoPlayerController.network(currentStory().mediaUrl);
+              _videoController.initialize().then((_) {
+                _videoController.play();
+                _animationController.forward();
+              });
+            }
           },
           children: [
             buildStoryGroup(context),
@@ -259,28 +246,28 @@ class _StoryScreenState extends State<StoryScreen>
     );
   }
 
-  Stack buildStoryGroup(BuildContext context) {
-    return Stack(
-      children: [
-        GestureDetector(
-          onTapDown: (details) {
-            final tapPosition = details.globalPosition;
-            final x = tapPosition.dx;
-            if (x < MediaQuery.of(context).size.width / 3) {
-              previousStory();
-            } else if (x > MediaQuery.of(context).size.width * 2 / 3) {
-              nextStory();
-            } else {
-              animationController.stop();
-              videoController.pause();
-            }
-          },
-          onTapUp: (details) {
-            animationController.forward();
-            videoController.play();
-          },
-          child: Obx(()=>
-            Container(
+  Obx buildStoryGroup(BuildContext context) {
+    return Obx(()=>
+      Stack(
+        children: [
+          GestureDetector(
+            onTapDown: (details) {
+              final tapPosition = details.globalPosition;
+              final x = tapPosition.dx;
+              if (x < MediaQuery.of(context).size.width / 3) {
+                previousStory();
+              } else if (x > MediaQuery.of(context).size.width * 2 / 3) {
+                nextStory();
+              } else {
+                _animationController.stop();
+                _videoController.pause();
+              }
+            },
+            onTapUp: (details) {
+              _animationController.forward();
+              _videoController.play();
+            },
+            child: Container(
               color: Colors.black,
               child: currentStory().mediaType == MediaType.image
                   ? Image.network(
@@ -292,7 +279,7 @@ class _StoryScreenState extends State<StoryScreen>
                       loadingBuilder: (BuildContext context, Widget child,
                           ImageChunkEvent? loadingProgress) {
                         if (loadingProgress == null) {
-                          animationController.forward();
+                          _animationController.forward();
                           return child;
                         }
                         return Center(
@@ -306,42 +293,40 @@ class _StoryScreenState extends State<StoryScreen>
                       },
                     )
                   : Center(
-                      child: videoController.value.isInitialized
+                      child: _videoController.value.isInitialized
                           ? AspectRatio(
-                              aspectRatio: videoController.value.aspectRatio,
-                              child: VideoPlayer(videoController),
+                              aspectRatio: _videoController.value.aspectRatio,
+                              child: VideoPlayer(_videoController),
                             )
                           : Container(),
                     ),
             ),
           ),
-        ),
-        Positioned(
-          left: 20,
-          top: 20,
-          child: CircleAvatar(
-            //radius: 30.0,
-            child: Image.network(
-              storyGroups[currentSGroup].user.profileImage,
-              width: 30,
-              height: 40,
+          Positioned(
+            left: 20,
+            top: 20,
+            child: CircleAvatar(
+              //radius: 30.0,
+              child: Image.network(
+                storyGroups[_currentStoryGroupIndex].user.profileImage,
+                width: 30,
+                height: 40,
+              ),
             ),
           ),
-        ),
-        Align(
-          alignment: AlignmentDirectional.topCenter,
-          child: Obx(
-            () => Row(
+          Align(
+            alignment: AlignmentDirectional.topCenter,
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(storyGroups[currentSGroup].stories.length,
+              children: List.generate(storyGroups[_currentStoryGroupIndex].stories.length,
                   (index) {
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(2),
                     child: LinearProgressIndicator(
-                      value: cStory == index
-                          ? progress.value
-                          : cStory > index
+                      value: _currentStoryIndex == index
+                          ? _controller.progress.value
+                          : _currentStoryIndex > index
                               ? currentStory().duration.inSeconds.toDouble()
                               : 0,
                       semanticsLabel: 'Linear progress indicator',
@@ -353,8 +338,8 @@ class _StoryScreenState extends State<StoryScreen>
               }),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
